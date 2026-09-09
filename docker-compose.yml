@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: postgres:17
+    container_name: forgewatch-postgres
+    environment:
+      POSTGRES_DB: forgewatch
+      POSTGRES_USER: forgewatch
+      POSTGRES_PASSWORD: forgewatch
+    ports:
+      - "5432:5432"
+    volumes:
+      - forgewatch-data:/var/lib/postgresql/data
+volumes:
+  forgewatch-data:
