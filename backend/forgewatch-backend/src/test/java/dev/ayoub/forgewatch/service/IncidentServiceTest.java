@@ -54,7 +54,7 @@ class IncidentServiceTest {
     @Test
     void resolvesOpenIncident() {
 
-        when(incidentRepository.findById(10L))
+        when(incidentRepository.findByIdForUpdate(10L))
                 .thenReturn(Optional.of(incident));
 
         when(incidentRepository.save(any(Incident.class)))
@@ -76,7 +76,7 @@ class IncidentServiceTest {
 
         incident.setStatus(IncidentStatus.RESOLVED);
 
-        when(incidentRepository.findById(10L))
+        when(incidentRepository.findByIdForUpdate(10L))
                 .thenReturn(Optional.of(incident));
 
         IllegalArgumentException exception =
@@ -97,7 +97,7 @@ class IncidentServiceTest {
     @Test
     void resolvingMissingIncidentReturnsNotFound() {
 
-        when(incidentRepository.findById(999L))
+        when(incidentRepository.findByIdForUpdate(999L))
                 .thenReturn(Optional.empty());
 
         assertThrows(

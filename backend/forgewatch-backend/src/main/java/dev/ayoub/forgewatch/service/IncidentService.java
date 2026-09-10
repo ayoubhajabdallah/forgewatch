@@ -50,7 +50,7 @@ public class IncidentService {
     @Transactional
     public IncidentResponse resolveIncident(Long id) {
 
-        Incident incident = incidentRepository.findById(id)
+        Incident incident = incidentRepository.findByIdForUpdate(id)
                 .orElseThrow(() ->
                         new ResourceNotFoundException(
                                 "Incident not found: " + id

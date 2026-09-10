@@ -2,13 +2,18 @@ package dev.ayoub.forgewatch.service;
 
 import dev.ayoub.forgewatch.dto.MeasurementResponse;
 import dev.ayoub.forgewatch.entity.*;
+import dev.ayoub.forgewatch.exception.ResourceNotFoundException;
 import dev.ayoub.forgewatch.repository.AlertRepository;
 import dev.ayoub.forgewatch.repository.IncidentRepository;
 import dev.ayoub.forgewatch.repository.MeasurementRepository;
+import dev.ayoub.forgewatch.repository.MachineRepository;
 import dev.ayoub.forgewatch.repository.SensorRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -35,6 +40,9 @@ class MonitoringServiceTest {
     @Mock
     private IncidentRepository incidentRepository;
 
+    @Mock
+    private MachineRepository machineRepository;
+
     @InjectMocks
     private MonitoringService monitoringService;
 
@@ -58,6 +66,9 @@ class MonitoringServiceTest {
         sensor.setCriticalThreshold(80.0);
         sensor.setMachine(machine);
 
+    }
+
+    private void stubMeasurementSave() {
         when(sensorRepository.findById(10L))
                 .thenReturn(Optional.of(sensor));
 
@@ -67,6 +78,7 @@ class MonitoringServiceTest {
 
     @Test
     void normalMeasurementCreatesNoAlertOrIncident() {
+        stubMeasurementSave();
 
         MeasurementResponse response =
                 monitoringService.processMeasurement(10L, 60.0);
@@ -76,15 +88,18 @@ class MonitoringServiceTest {
 
         verifyNoInteractions(alertRepository);
         verifyNoInteractions(incidentRepository);
+        verifyNoInteractions(machineRepository);
     }
 
-    @Test
-    void warningMeasurementCreatesWarningAlertOnly() {
+    @ParameterizedTest
+    @ValueSource(doubles = {70.0, 75.0})
+    void warningMeasurementCreatesWarningAlertOnly(double value) {
+        stubMeasurementSave();
 
         when(alertRepository.save(any(Alert.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        monitoringService.processMeasurement(10L, 75.0);
+        monitoringService.processMeasurement(10L, value);
 
         ArgumentCaptor<Alert> alertCaptor =
                 ArgumentCaptor.forClass(Alert.class);
@@ -94,13 +109,17 @@ class MonitoringServiceTest {
         Alert alert = alertCaptor.getValue();
 
         assertEquals(Severity.WARNING, alert.getSeverity());
-        assertEquals(75.0, alert.getMeasurement().getValue());
+        assertEquals(value, alert.getMeasurement().getValue());
 
         verifyNoInteractions(incidentRepository);
+        verifyNoInteractions(machineRepository);
     }
 
-    @Test
-    void criticalMeasurementCreatesCriticalAlertAndIncident() {
+    @ParameterizedTest
+    @ValueSource(doubles = {80.0, 85.0})
+    void criticalMeasurementCreatesCriticalAlertAndIncident(double value) {
+        stubMeasurementSave();
+        when(machineRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(sensor.getMachine()));
 
         when(alertRepository.save(any(Alert.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
@@ -112,7 +131,7 @@ class MonitoringServiceTest {
                 )
         ).thenReturn(false);
 
-        monitoringService.processMeasurement(10L, 85.0);
+        monitoringService.processMeasurement(10L, value);
 
         ArgumentCaptor<Alert> alertCaptor =
                 ArgumentCaptor.forClass(Alert.class);
@@ -134,10 +153,17 @@ class MonitoringServiceTest {
         assertEquals(Severity.CRITICAL, incident.getSeverity());
         assertEquals(IncidentStatus.OPEN, incident.getStatus());
         assertEquals(1L, incident.getMachine().getId());
+        assertSame(alertCaptor.getValue(), incident.getAlert());
+
+        var order = inOrder(machineRepository, incidentRepository);
+        order.verify(machineRepository).findByIdForUpdate(1L);
+        order.verify(incidentRepository).existsByMachineIdAndStatus(1L, IncidentStatus.OPEN);
     }
 
     @Test
     void criticalMeasurementDoesNotCreateDuplicateOpenIncident() {
+        stubMeasurementSave();
+        when(machineRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(sensor.getMachine()));
 
         when(alertRepository.save(any(Alert.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
@@ -156,5 +182,23 @@ class MonitoringServiceTest {
 
         verify(incidentRepository, never())
                 .save(any(Incident.class));
+    }
+
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(doubles = {Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY})
+    void rejectsNonFiniteOrMissingValuesBeforeWriting(Double value) {
+        assertThrows(IllegalArgumentException.class,
+                () -> monitoringService.processMeasurement(10L, value));
+        verifyNoInteractions(sensorRepository, measurementRepository, alertRepository,
+                incidentRepository, machineRepository);
+    }
+
+    @Test
+    void missingSensorCreatesNothing() {
+        when(sensorRepository.findById(999L)).thenReturn(Optional.empty());
+        assertThrows(ResourceNotFoundException.class,
+                () -> monitoringService.processMeasurement(999L, 85.0));
+        verifyNoInteractions(measurementRepository, alertRepository, incidentRepository, machineRepository);
     }
 }

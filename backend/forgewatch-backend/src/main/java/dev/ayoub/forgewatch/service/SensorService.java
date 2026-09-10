@@ -32,6 +32,11 @@ public class SensorService {
                                 "Machine not found: " + machineId
                         ));
 
+        if (request.warningThreshold() == null || !Double.isFinite(request.warningThreshold())
+                || request.criticalThreshold() == null || !Double.isFinite(request.criticalThreshold())) {
+            throw new IllegalArgumentException("Thresholds must be finite numbers");
+        }
+
         if (request.criticalThreshold() <= request.warningThreshold()) {
             throw new IllegalArgumentException(
                     "Critical threshold must be greater than warning threshold"

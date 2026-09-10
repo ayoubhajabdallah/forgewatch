@@ -6,6 +6,7 @@ import dev.ayoub.forgewatch.exception.ResourceNotFoundException;
 import dev.ayoub.forgewatch.repository.AlertRepository;
 import dev.ayoub.forgewatch.repository.IncidentRepository;
 import dev.ayoub.forgewatch.repository.MeasurementRepository;
+import dev.ayoub.forgewatch.repository.MachineRepository;
 import dev.ayoub.forgewatch.repository.SensorRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -19,18 +20,30 @@ public class MonitoringService {
     private final MeasurementRepository measurementRepository;
     private final AlertRepository alertRepository;
     private final IncidentRepository incidentRepository;
+    private final MachineRepository machineRepository;
 
     @Transactional
     public MeasurementResponse processMeasurement(
             Long sensorId,
             Double value
     ) {
+        if (value == null || !Double.isFinite(value)) {
+            throw new IllegalArgumentException("Measurement value must be a finite number");
+        }
 
         Sensor sensor = sensorRepository.findById(sensorId)
                 .orElseThrow(() ->
                         new ResourceNotFoundException(
                                 "Sensor not found: " + sensorId
                         ));
+
+        if (value >= sensor.getCriticalThreshold()) {
+            // Lock the shared machine before checking incidents, including across different sensors.
+            // The transaction holds this lock until the measurement, alert and incident commit.
+            machineRepository.findByIdForUpdate(sensor.getMachine().getId())
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Machine not found: " + sensor.getMachine().getId()));
+        }
 
         Measurement measurement = new Measurement();
         measurement.setValue(value);
