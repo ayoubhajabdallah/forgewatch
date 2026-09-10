@@ -1,0 +1,8 @@
+# Only send Maven build inputs; exclude local artifacts, IDE files and secrets.
+**
+!.mvn/
+!.mvn/**
+!mvnw
+!pom.xml
+!src/
+!src/**

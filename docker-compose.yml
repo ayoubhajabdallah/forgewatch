@@ -3,12 +3,36 @@ services:
     image: postgres:17
     container_name: forgewatch-postgres
     environment:
-      POSTGRES_DB: forgewatch
-      POSTGRES_USER: forgewatch
-      POSTGRES_PASSWORD: forgewatch
+      POSTGRES_DB: ${POSTGRES_DB:-forgewatch}
+      POSTGRES_USER: ${POSTGRES_USER:-forgewatch}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-forgewatch}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - forgewatch-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend/forgewatch-backend
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-forgewatch}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-forgewatch}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-forgewatch}
+      SPRING_JPA_SHOW_SQL: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8080:8080"
+    restart: unless-stopped
+    stop_grace_period: 30s
+
 volumes:
   forgewatch-data:
