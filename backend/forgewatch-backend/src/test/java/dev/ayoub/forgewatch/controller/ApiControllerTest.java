@@ -11,8 +11,11 @@ import dev.ayoub.forgewatch.service.MachineService;
 import dev.ayoub.forgewatch.service.MonitoringService;
 import dev.ayoub.forgewatch.service.SensorService;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
@@ -26,6 +29,7 @@ import java.util.List;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -45,6 +49,7 @@ class ApiControllerTest {
     private IncidentService incidentService;
 
     private MockMvc mockMvc;
+    private LocalValidatorFactoryBean validator;
 
     @BeforeEach
     void setUp() {
@@ -61,7 +66,7 @@ class ApiControllerTest {
         IncidentController incidentController =
                 new IncidentController(incidentService);
 
-        LocalValidatorFactoryBean validator =
+        validator =
                 new LocalValidatorFactoryBean();
 
         validator.afterPropertiesSet();
@@ -76,6 +81,11 @@ class ApiControllerTest {
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setValidator(validator)
                 .build();
+    }
+
+    @AfterEach
+    void closeValidator() {
+        validator.close();
     }
 
     @Test
@@ -235,5 +245,74 @@ class ApiControllerTest {
                 .andExpect(jsonPath("$.status")
                         .value("RESOLVED"))
                 .andExpect(jsonPath("$.resolvedAt").exists());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"name", "location"})
+    void rejectsMachineTextExceedingColumnLength(String field) throws Exception {
+        String name = field.equals("name") ? "x".repeat(101) : "Furnace";
+        String location = field.equals("location") ? "x".repeat(151) : "Hall A";
+        mockMvc.perform(post("/api/machines").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"%s\",\"location\":\"%s\"}".formatted(name, location)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400));
+        verifyNoInteractions(machineService);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"name", "unit"})
+    void rejectsSensorTextExceedingColumnLength(String field) throws Exception {
+        String name = field.equals("name") ? "x".repeat(101) : "Temperature";
+        String unit = field.equals("unit") ? "x".repeat(21) : "C";
+        mockMvc.perform(post("/api/machines/1/sensors").contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"%s","type":"TEMPERATURE","unit":"%s",
+                                 "warningThreshold":70,"criticalThreshold":80}
+                                """.formatted(name, unit)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400));
+        verifyNoInteractions(sensorService);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", "{", "{\"value\":\"invalid\"}"})
+    void unreadableMeasurementBodyReturnsStructured400(String body) throws Exception {
+        mockMvc.perform(post("/api/sensors/10/measurements").contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.error").value("Bad Request"))
+                .andExpect(jsonPath("$.message").isNotEmpty());
+        verifyNoInteractions(monitoringService);
+    }
+
+    @Test
+    void missingMeasurementValueReturns400() throws Exception {
+        mockMvc.perform(post("/api/sensors/10/measurements").contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("value: Measurement value is required"));
+        verifyNoInteractions(monitoringService);
+    }
+
+    @Test
+    void invalidSensorTypeReturnsStructured400() throws Exception {
+        mockMvc.perform(post("/api/machines/1/sensors").contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"Temperature","type":"UNKNOWN","unit":"C",
+                                 "warningThreshold":70,"criticalThreshold":80}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400));
+        verifyNoInteractions(sensorService);
+    }
+
+    @Test
+    void invalidPathIdReturnsStructured400() throws Exception {
+        mockMvc.perform(get("/api/machines/invalid"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message").value("Invalid value for parameter: id"));
+        verifyNoInteractions(machineService);
     }
 }
