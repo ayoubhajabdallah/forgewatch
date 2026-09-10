@@ -1,0 +1,113 @@
+<div class="page-heading">
+  <div>
+    <h1>Operations overview</h1>
+    <p>Your machines, signals and incidents. One clear view.</p>
+  </div>
+  <a class="button primary" routerLink="/machines"
+    >Manage machines <span aria-hidden="true">↗</span></a
+  >
+</div>
+<div class="stats-grid" aria-label="Monitoring summary">
+  <article class="stat-card">
+    <span class="stat-label">Total machines <span aria-hidden="true">▤</span></span
+    ><strong data-testid="total-machines">{{
+      store.lastUpdated() ? store.machines().length : '—'
+    }}</strong
+    ><span class="stat-foot">Registered across your workspace</span>
+  </article>
+  <article class="stat-card amber">
+    <span class="stat-label">Open incidents <span aria-hidden="true">◇</span></span
+    ><strong data-testid="open-incidents">{{
+      store.lastUpdated() ? store.openIncidents().length : '—'
+    }}</strong
+    ><a routerLink="/incidents" class="stat-foot">Awaiting resolution ↗</a>
+  </article>
+  <article class="stat-card red">
+    <span class="stat-label">Critical incidents <span aria-hidden="true">!</span></span
+    ><strong data-testid="critical-incidents">{{
+      store.lastUpdated() ? store.critical() : '—'
+    }}</strong
+    ><span class="stat-foot">Critical severity · open only</span>
+  </article>
+  <article class="stat-card green">
+    <span class="stat-label">Running machines <span aria-hidden="true">↗</span></span
+    ><strong>{{ store.lastUpdated() ? running() : '—' }}</strong
+    ><span class="stat-foot">Current registered machine status</span>
+  </article>
+</div>
+@if (store.lastUpdated()) {
+  <div class="overview-grid">
+    <section class="panel">
+      <div class="panel-heading">
+        <div>
+          <span class="eyebrow">ACTIVITY</span>
+          <h2>Recent incidents</h2>
+        </div>
+        <a class="text-link" routerLink="/incidents" [queryParams]="{ view: 'all' }">View all ↗</a>
+      </div>
+      <app-incident-table [incidents]="store.recent().slice(0, 5)" />
+    </section>
+    <section class="panel">
+      <div class="panel-heading">
+        <div>
+          <span class="eyebrow">ASSET SNAPSHOT</span>
+          <h2>Machine status</h2>
+        </div>
+        <span class="count-label">{{ store.machines().length }} total</span>
+      </div>
+      <div class="fleet-list">
+        @for (machine of store.machines().slice(0, 5); track machine.id) {
+          <a class="fleet-item" [routerLink]="['/machines', machine.id]"
+            ><span class="machine-icon" aria-hidden="true">▤</span
+            ><span class="fleet-name"
+              ><strong>{{ machine.name }}</strong
+              ><small>{{ machine.location }}</small></span
+            ><app-badge [value]="machine.status"
+          /></a>
+        } @empty {
+          <div class="empty">
+            <strong>Your workspace is ready</strong>
+            <p>Create your first machine to begin monitoring.</p>
+            <a routerLink="/machines">Add a machine ↗</a>
+          </div>
+        }
+      </div>
+      @if (store.machines().length) {
+        <a routerLink="/machines" class="panel-bottom-link">View all machines →</a>
+      }
+    </section>
+  </div>
+  @if (selected(); as machine) {
+    <div class="section-toolbar">
+      <div>
+        <h2>Machine instrumentation</h2>
+        <p class="muted">Inspect configured limits or record a reading.</p>
+      </div>
+      <label class="select-label"
+        >Selected machine<select
+          #machineSelect
+          [value]="machine.id"
+          (change)="select(machineSelect.value)"
+        >
+          @for (item of store.machines(); track item.id) {
+            <option [value]="item.id">{{ item.name }} · #{{ item.id }}</option>
+          }
+        </select></label
+      >
+    </div>
+    <app-sensor-panel [machine]="machine" [revision]="store.lastUpdated()" />
+  }
+} @else {
+  <div class="panel empty" role="status">
+    <strong>{{
+      store.loading() ? 'Loading your workspace…' : 'Workspace data unavailable'
+    }}</strong>
+    <p>
+      {{
+        store.loading()
+          ? 'Fetching machines and incidents from ForgeWatch.'
+          : 'Use Refresh to try connecting again.'
+      }}
+    </p>
+  </div>
+}
