@@ -1,0 +1,173 @@
+<section class="panel sensor-panel" aria-labelledby="sensor-heading">
+  <div class="panel-heading">
+    <div>
+      <span class="eyebrow">SENSOR CONFIGURATION</span>
+      <h2 id="sensor-heading">Thresholds & measurements</h2>
+      <p>
+        {{ machine().name }} <span class="muted">/ {{ machine().location }}</span>
+      </p>
+    </div>
+    <span class="count-label">{{ state() === 'ready' ? sensors().length : '—' }} sensors</span>
+  </div>
+  @if (state() === 'loading') {
+    <p class="loading-state" role="status">Loading sensors…</p>
+  } @else if (state() === 'error') {
+    <div class="empty" role="alert">
+      <p>{{ error() }}</p>
+      <button class="button" (click)="load()">Retry sensors</button>
+    </div>
+  } @else {
+    @if (sensors().length) {
+      <div class="table-scroll">
+        <table>
+          <caption class="sr-only">
+            Sensor warning and critical thresholds for
+            {{
+              machine().name
+            }}
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">Sensor</th>
+              <th scope="col">Type</th>
+              <th scope="col">Warning ≥</th>
+              <th scope="col">Critical ≥</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (sensor of sensors(); track sensor.id) {
+              <tr>
+                <td>
+                  <strong>{{ sensor.name }}</strong
+                  ><small class="muted">SENSOR #{{ sensor.id }}</small>
+                </td>
+                <td>{{ sensor.type.replaceAll('_', ' ') }}</td>
+                <td class="threshold warning">
+                  {{ sensor.warningThreshold }} <span>{{ sensor.unit }}</span>
+                </td>
+                <td class="threshold critical">
+                  {{ sensor.criticalThreshold }} <span>{{ sensor.unit }}</span>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    } @else {
+      <div class="empty">
+        <strong>No sensors registered</strong>
+        <p>Add a sensor with warning and critical thresholds to start monitoring this machine.</p>
+      </div>
+    }
+    <div class="sensor-actions">
+      <details class="form-disclosure">
+        <summary>＋ Create sensor</summary>
+        <form [formGroup]="sensorForm" (ngSubmit)="createSensor()" aria-label="Create sensor">
+          <fieldset [disabled]="saving()">
+            <div class="form-grid">
+              <label
+                >Sensor name<input
+                  formControlName="name"
+                  maxlength="100"
+                  placeholder="e.g. Furnace temperature"
+                  required
+              /></label>
+              <label
+                >Sensor type<select formControlName="type">
+                  @for (type of types; track type) {
+                    <option [value]="type">{{ type.replaceAll('_', ' ') }}</option>
+                  }
+                </select></label
+              >
+              <label
+                >Unit<input formControlName="unit" maxlength="20" placeholder="e.g. °C" required
+              /></label>
+              <label
+                >Warning threshold<input
+                  type="number"
+                  step="any"
+                  formControlName="warningThreshold"
+                  required
+              /></label>
+              <label
+                >Critical threshold<input
+                  type="number"
+                  step="any"
+                  formControlName="criticalThreshold"
+                  required
+              /></label>
+            </div>
+            <p class="form-hint">
+              Readings at or above a threshold trigger that level. Critical must be greater than
+              warning.
+            </p>
+            @if (sensorForm.touched && sensorForm.invalid) {
+              <p class="field-error" role="alert">
+                {{
+                  sensorForm.hasError('thresholdOrder')
+                    ? 'Critical threshold must be greater than warning threshold.'
+                    : 'Complete every field with a valid name, unit and finite numeric thresholds.'
+                }}
+              </p>
+            }
+            <button type="submit" class="button primary">
+              {{ saving() ? 'Saving…' : 'Create sensor' }}
+            </button>
+          </fieldset>
+        </form>
+      </details>
+      @if (sensors().length) {
+        <details class="form-disclosure">
+          <summary>↗ Submit measurement</summary>
+          <form
+            [formGroup]="measurementForm"
+            (ngSubmit)="submitMeasurement()"
+            aria-label="Submit measurement"
+          >
+            <fieldset [disabled]="saving()">
+              <div class="form-grid">
+                <label
+                  >Sensor<select
+                    #sensorSelect
+                    [value]="selectedId()"
+                    (change)="select(sensorSelect.value)"
+                  >
+                    @for (sensor of sensors(); track sensor.id) {
+                      <option [value]="sensor.id">{{ sensor.name }} ({{ sensor.unit }})</option>
+                    }
+                  </select></label
+                >
+                <label
+                  >Measurement value
+                  @if (selected(); as sensor) {
+                    ({{ sensor.unit }})
+                  }
+                  <input type="number" step="any" formControlName="value" required
+                /></label>
+              </div>
+              @if (selected(); as sensor) {
+                <p class="form-hint">
+                  Warning ≥ {{ sensor.warningThreshold }} {{ sensor.unit }} · Critical ≥
+                  {{ sensor.criticalThreshold }} {{ sensor.unit }}. Critical readings may open an
+                  incident. Warning readings create alerts only.
+                </p>
+              }
+              @if (measurementForm.touched && measurementForm.invalid) {
+                <p class="field-error" role="alert">Enter a finite numeric measurement.</p>
+              }
+              <button type="submit" class="button primary">
+                {{ saving() ? 'Submitting…' : 'Submit measurement' }}
+              </button>
+            </fieldset>
+          </form>
+        </details>
+      }
+      @if (formError()) {
+        <p role="alert" class="message error">{{ formError() }}</p>
+      }
+      @if (success()) {
+        <p role="status" class="message success">{{ success() }}</p>
+      }
+    </div>
+  }
+</section>

@@ -1,0 +1,88 @@
+<a href="#main-content" class="skip-link">Skip to content</a>
+<div class="app-shell">
+  <aside class="sidebar">
+    <a class="brand" routerLink="/"
+      ><span class="brand-symbol" aria-hidden="true">F<span>W</span></span
+      ><span>ForgeWatch<small>INDUSTRIAL MONITORING</small></span></a
+    >
+    <span class="nav-label">WORKSPACE</span>
+    <nav aria-label="Main navigation">
+      <a
+        routerLink="/"
+        routerLinkActive="active"
+        [routerLinkActiveOptions]="{ exact: true }"
+        ariaCurrentWhenActive="page"
+        ><span aria-hidden="true">▦</span>Overview</a
+      >
+      <a routerLink="/machines" routerLinkActive="active" ariaCurrentWhenActive="page"
+        ><span aria-hidden="true">▤</span>Machines</a
+      >
+      <a routerLink="/incidents" routerLinkActive="active" ariaCurrentWhenActive="page"
+        ><span aria-hidden="true">◇</span>Incidents
+        <span class="nav-count">{{
+          store.lastUpdated() ? store.openIncidents().length : '—'
+        }}</span></a
+      >
+    </nav>
+    <div class="sidebar-footer">
+      <span class="connection-dot" [class.offline]="store.error()"></span
+      ><span
+        >{{
+          store.error()
+            ? 'Connection needs attention'
+            : store.lastUpdated()
+              ? 'Backend connected'
+              : 'Connecting to backend'
+        }}<small>ForgeWatch / local workspace</small></span
+      >
+    </div>
+  </aside>
+  <div class="workspace">
+    <header class="topbar">
+      <span class="breadcrumb">Workspace <span>/</span> Operations</span
+      ><span class="workspace-tag">LOCAL ENVIRONMENT</span>
+    </header>
+    <main id="main-content">
+      <div class="sync-row">
+        <span class="eyebrow">OPERATIONS CENTER</span>
+        <div class="sync-controls">
+          <span class="muted">{{
+            store.loading()
+              ? 'Syncing…'
+              : store.lastUpdated()
+                ? 'Updated ' + (store.lastUpdated() | date: 'HH:mm:ss')
+                : 'Awaiting data'
+          }}</span
+          ><button class="button small" (click)="store.refresh()" [disabled]="store.loading()">
+            ↻ Refresh
+          </button>
+        </div>
+      </div>
+      @if (store.error()) {
+        <div role="alert" class="message error">
+          {{ store.error() }}
+          @if (store.lastUpdated()) {
+            <strong>Showing the last successful snapshot.</strong>
+          }
+        </div>
+      }
+      @if (store.notice()) {
+        <div role="status" class="message success">
+          {{ store.notice()
+          }}<button
+            class="text-button"
+            aria-label="Dismiss notification"
+            (click)="store.notice.set('')"
+          >
+            Dismiss
+          </button>
+        </div>
+      }
+      <router-outlet />
+      <footer class="page-footer">
+        <span>ForgeWatch <span class="muted">/ Machine monitoring & incident management</span></span
+        ><span>Refresh for the latest snapshot</span>
+      </footer>
+    </main>
+  </div>
+</div>

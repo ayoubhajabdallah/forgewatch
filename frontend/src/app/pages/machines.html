@@ -1,0 +1,76 @@
+<div class="page-heading">
+  <div>
+    <h1>Machines</h1>
+    <p>Manage your assets and the sensors that watch them.</p>
+  </div>
+  <span class="workspace-tag"
+    >{{ store.lastUpdated() ? store.machines().length : '—' }} REGISTERED</span
+  >
+</div>
+<app-create-machine (created)="router.navigate(['/machines', $event.id])" />
+@if (store.lastUpdated()) {
+  <div class="machines-grid">
+    <section class="panel machine-directory">
+      <div class="panel-heading"><h2>Machine directory</h2></div>
+      <label class="search-label"
+        >Find a machine<input
+          #search
+          type="search"
+          placeholder="Search name or location"
+          [value]="query()"
+          (input)="query.set(search.value)"
+      /></label>
+      @for (machine of filtered(); track machine.id) {
+        <a
+          class="directory-item"
+          [class.selected]="selected()?.id === machine.id"
+          [attr.aria-current]="selected()?.id === machine.id ? 'true' : null"
+          [routerLink]="['/machines', machine.id]"
+          ><span class="directory-id">ASSET #{{ machine.id }}</span
+          ><strong>{{ machine.name }}</strong
+          ><small>{{ machine.location }}</small
+          ><app-badge [value]="machine.status"
+        /></a>
+      } @empty {
+        <div class="empty">
+          <strong>{{ query() ? 'No matching machines' : 'No machines yet' }}</strong>
+          <p>
+            {{
+              query()
+                ? 'Try a different name or location.'
+                : 'Use Create machine above to add your first asset.'
+            }}
+          </p>
+        </div>
+      }
+    </section>
+    <div class="machine-detail">
+      @if (selected(); as machine) {
+        <section class="asset-heading">
+          <div>
+            <span class="eyebrow">ASSET #{{ machine.id }}</span>
+            <h2>{{ machine.name }}</h2>
+            <p>{{ machine.location }}</p>
+          </div>
+          <app-badge [value]="machine.status" />
+        </section>
+        <app-sensor-panel [machine]="machine" [revision]="store.lastUpdated()" />
+      } @else {
+        <div class="panel empty">
+          <strong>{{
+            missing()
+              ? 'Machine not found'
+              : store.loading()
+                ? 'Loading machine…'
+                : 'Select or create a machine'
+          }}</strong>
+          <p>Sensor configuration will appear here.</p>
+        </div>
+      }
+    </div>
+  </div>
+} @else {
+  <p class="loading-state" role="status">
+    {{ store.loading() ? 'Loading machines…' : 'Machine data unavailable. Use Refresh to retry.' }}
+  </p>
+}
